@@ -120,6 +120,10 @@ avanzan T-1.1.1 (`provideHttpClient` + `apiBaseUrl`), T-1.1.2 (`TokenStorage`) y
 > **Definición de terminado:** `main` y `develop` publicadas y protegidas con required
 > check `ci-gate`, la secuencia `lint → format:check → typecheck → test:coverage → build`
 > en verde, y `GET /health` respondiendo.
+>
+> **Estado:** 9 de 11 tickets cerrados. `main` y `develop` están publicadas y el pipeline
+> corrió **verde en GitHub** sobre ambas, con cobertura real. Quedan T-0.1.2 (branch
+> protection) y T-0.1.7 (PR de bootstrap `develop` → `main`).
 
 ### HU-0.1 — Infraestructura de gitflow
 
@@ -135,9 +139,8 @@ avanzan T-1.1.1 (`provideHttpClient` + `apiBaseUrl`), T-1.1.2 (`TokenStorage`) y
 
 **Nota sobre T-0.1.2 — por qué 0 aprobaciones.** GitHub no permite aprobar tu propio PR;
 en un repo de una sola persona exigir 1 aprobación bloquearía todos los merges. Se exige PR
-
-- `ci-gate` en verde, que es lo que realmente protege. `enforce_admins: false` deja al
-  owner commitear directo sobre `develop` los tickets sin cambio de lógica.
+más `ci-gate` en verde, que es lo que realmente protege. `enforce_admins: false` deja al
+owner commitear directo sobre `develop` los tickets sin cambio de lógica.
 
 ### HU-0.2 — Scaffold NestJS y pipeline
 
@@ -368,24 +371,28 @@ Lista plana en orden de trabajo. Estados: ✅ mergeado · 🔄 en curso · ⬜ p
 
 ### Épica 0 — Fundación, CI y gitflow
 
-| #   | Ticket  | Rama                                             | Estado             |
-| --- | ------- | ------------------------------------------------ | ------------------ |
-| 01  | T-0.1.1 | _(sin PR)_ commit inicial + `main` y `develop`   | ⬜                 |
-| 02  | T-0.1.2 | _(sin PR)_ branch protection                     | ⬜                 |
-| 03  | T-0.1.3 | `develop` (directo) plantillas GitHub            | 🔄 en el bootstrap |
-| 04  | T-0.1.4 | `develop` (directo) `CONTRIBUTING.md`            | 🔄 en el bootstrap |
-| 05  | T-0.1.5 | `develop` (directo) `docs/BACKLOG.md`            | 🔄 en el bootstrap |
-| 06  | T-0.1.6 | `develop` (directo) `README.md` + `.env.example` | 🔄 en el bootstrap |
-| 07  | T-0.1.7 | PR `develop` → `main`                            | ⬜                 |
-| 08  | T-0.2.1 | `chore/NEQUEBFF-0.2.1-nest-scaffold`             | 🔄 en el bootstrap |
-| 09  | T-0.2.2 | `ci/NEQUEBFF-0.2.2-ci-pipeline`                  | 🔄 en el bootstrap |
-| 10  | T-0.2.3 | `feat/NEQUEBFF-0.2.3-http-baseline`              | 🔄 en el bootstrap |
-| 11  | T-0.2.4 | `feat/NEQUEBFF-0.2.4-healthcheck`                | 🔄 en el bootstrap |
+| #   | Ticket  | Rama                                             | Estado |
+| --- | ------- | ------------------------------------------------ | ------ |
+| 01  | T-0.1.1 | _(sin PR)_ commit inicial + `main` y `develop`   | ✅     |
+| 02  | T-0.1.2 | _(sin PR)_ branch protection                     | ⬜     |
+| 03  | T-0.1.3 | `develop` (directo) plantillas GitHub            | ✅     |
+| 04  | T-0.1.4 | `develop` (directo) `CONTRIBUTING.md`            | ✅     |
+| 05  | T-0.1.5 | `develop` (directo) `docs/BACKLOG.md`            | ✅     |
+| 06  | T-0.1.6 | `develop` (directo) `README.md` + `.env.example` | ✅     |
+| 07  | T-0.1.7 | PR `develop` → `main`                            | ⬜     |
+| 08  | T-0.2.1 | `chore/NEQUEBFF-0.2.1-nest-scaffold`             | ✅     |
+| 09  | T-0.2.2 | `ci/NEQUEBFF-0.2.2-ci-pipeline`                  | ✅     |
+| 10  | T-0.2.3 | `feat/NEQUEBFF-0.2.3-http-baseline`              | ✅     |
+| 11  | T-0.2.4 | `feat/NEQUEBFF-0.2.4-healthcheck`                | ✅     |
 
-> Los tickets marcados 🔄 están **escritos y validados en local** (`lint`,
-> `format:check`, `typecheck`, `test:coverage` con 100% en las 4 métricas, y `build`),
-> pero el repositorio todavía no tiene ningún commit. Pasan a ✅ cuando T-0.1.1 los
-> publique.
+> **Cómo se validó.** `lint`, `format:check` y `typecheck` limpios; 16 tests con **100% en
+> las 4 métricas**; `build` generando `dist/main.js`; `npm ci` reproduciendo la instalación
+> desde el lockfile; y `GET /health` respondiendo con el CORS de Capacitor y el formato de
+> error `{ statusCode, message }` verificados contra el server corriendo. En GitHub, el
+> workflow `CI Pipeline` cerró **en verde sobre `main` y `develop`** en el push inicial.
+>
+> T-0.1.2 y T-0.1.7 son operaciones sobre GitHub que ejecuta el owner: el agente no corre
+> `git commit`, `git push` ni `git tag` por la regla de `CLAUDE.md`.
 
 ### Épica 1 — Persistencia
 
