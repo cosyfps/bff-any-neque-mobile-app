@@ -1,0 +1,6 @@
+# Config local de herramientas (no versionada)
+.claude/
+
+# Artefactos
+dist/
+coverage/

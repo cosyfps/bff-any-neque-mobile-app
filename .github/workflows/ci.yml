@@ -1,0 +1,233 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # JOB 1 — Dependencies
+  # Instala, cachea node_modules y valida integridad del lockfile.
+  # ────────────────────────────────────────────────────────────
+  dependencies:
+    name: Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Validate lockfile integrity
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "ERROR: package-lock.json no encontrado. Commitea el lockfile."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache node_modules
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+  # ────────────────────────────────────────────────────────────
+  # JOB 2 — Lint & Format
+  # ESLint + Prettier check. Falla rapido antes de ejecutar tests.
+  # ────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    needs: dependencies
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run format:check
+
+  # ────────────────────────────────────────────────────────────
+  # JOB 3 — TypeScript type-check
+  # ────────────────────────────────────────────────────────────
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    needs: dependencies
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+
+      - name: Type check
+        run: npm run typecheck
+
+  # ────────────────────────────────────────────────────────────
+  # JOB 4 — Tests + Coverage (>= 80%)
+  # ────────────────────────────────────────────────────────────
+  test:
+    name: Tests (coverage >= 80%)
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          CI: true
+
+      - name: Verify coverage threshold
+        run: |
+          node -e "
+            const MIN = 80;
+            const METRICS = ['lines', 'statements', 'functions', 'branches'];
+            const total = require('./coverage/coverage-summary.json').total;
+            const failures = [];
+
+            for (const metric of METRICS) {
+              const pct = total[metric] && total[metric].pct;
+              // Sin specs, Istanbul reporta el string 'Unknown' en vez de un numero:
+              // comparar directo daria NaN < 80 === false y el gate pasaria en falso.
+              if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+                failures.push(metric + ': valor no numerico (' + JSON.stringify(pct) + ')');
+                continue;
+              }
+              if (pct < MIN) {
+                failures.push(metric + ': ' + pct.toFixed(2) + '% < ' + MIN + '%');
+                continue;
+              }
+              console.log('OK ' + metric + ': ' + pct.toFixed(2) + '% >= ' + MIN + '%');
+            }
+
+            if (failures.length) {
+              console.error('FAIL: coverage por debajo del minimo requerido');
+              for (const f of failures) console.error('  - ' + f);
+              process.exit(1);
+            }
+            console.log('OK: las 4 metricas superan el ' + MIN + '%');
+          "
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────
+  # JOB 5 — Nest Build
+  # Valida que el proyecto compila a dist/ sin errores.
+  # ────────────────────────────────────────────────────────────
+  build:
+    name: Nest Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          if [ ! -f dist/main.js ]; then
+            echo "ERROR: El build no genero dist/main.js"
+            exit 1
+          fi
+          echo "OK: Build generado correctamente"
+          du -sh dist/
+
+  # ────────────────────────────────────────────────────────────
+  # CI Gate — Consolida todos los jobs
+  # Branch protection rules apuntan solo a este job.
+  # ────────────────────────────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    needs: [dependencies, lint, typecheck, test, build]
+    if: always()
+
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          JOBS_STATUS="${{ join(needs.*.result, ',') }}"
+          echo "Estado de jobs: $JOBS_STATUS"
+          if echo "$JOBS_STATUS" | grep -qE '(failure|cancelled|skipped)'; then
+            echo "FAIL: Uno o mas jobs fallaron. PR bloqueado."
+            exit 1
+          fi
+          echo "OK: Todos los jobs pasaron. Listo para merge."
