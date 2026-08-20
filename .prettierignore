@@ -4,3 +4,6 @@
 # Artefactos
 dist/
 coverage/
+
+# Lockfile: lo formatea npm, no prettier (evita que se peleen en CI)
+package-lock.json
